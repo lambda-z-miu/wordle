@@ -1,5 +1,5 @@
 {
-  "total_rounds": 1,
+  "total_rounds": 2,
   "games": [
     {
       "answer": "PROXY",
@@ -7,6 +7,14 @@
         "CRANE",
         "PROUD",
         "PROXY"
+      ]
+    },
+    {
+      "answer": "RYBAT",
+      "guesses": [
+        "ALPHA",
+        "RAYON",
+        "RYBAT"
       ]
     }
   ]

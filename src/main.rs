@@ -19,75 +19,21 @@ use std::collections::HashMap;
 fn main() -> () {
     let final_config = parseconfig::parse_config();
     let mut game_state = generate_game_state(&final_config);
+    
     let JSON_path = &final_config.state_path;
+
     if let Some(JSON_path) = JSON_path {
-        let state_from_JSON = JSONState::get_state_form_JSON(&JSON_path);
-        // merge_state(&mut game_state,&state_from_JSON);
+        let mut state_from_JSON = JSONState::get_state_form_JSON(&JSON_path).expect("Unable to read JSON file");
+        muilti_round(&final_config,&mut game_state);
+        state_from_JSON.update_JSONstate(&game_state);
+        state_from_JSON.write_to_JSON();
+        // check_word("BBBAA","AAABB");
     }
+
     // write_to_JSON();
 
-    muilti_round(&final_config,&mut game_state);
-    // check_word("BBBAA","AAABB");
+    
 }
-/*
-{
-  "total_rounds": 1,
-  "games": [ 
-    {
-      "answer": "PROXY",
-      "guesses": ["CRANE", "PROUD", "PROXY"]
-    }
-  ]
-}
-*/
-
-#[derive(Debug, Serialize, Deserialize)]
-struct JSONAux {
-    answer: Option<String>,
-    guesses: Option<Vec<String>>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct JSONState {
-    total_rounds: Option<u32>,
-    games: Vec<JSONAux>,
-}
-
-impl JSONState {
-    fn get_state_form_JSON(JSON_path : &str) -> Option<JSONState> {
-        let data = match fs::read_to_string(JSON_path) {
-            Ok(s) => s,
-            Err(_) => {
-                println!("No existing state file found, starting a new game.");
-                return None;
-            }
-        };
-        let cfg: JSONState = serde_json::from_str(&data).expect("JSON was not well-formatted and cannot be parsed");
-        // println!("解析结果: {:?}", cfg);
-        Some(cfg)
-    }
-}
-
-/*
-fn merge_state(game_state : &mut GameState, json_state : &Option<JSONState>) -> () {
-    if let Some(json_state) = json_state {
-        if let Some(total_rounds) = json_state.total_rounds {
-            game_state.trys = total_rounds;
-        }
-        if !json_state.games.is_empty() { // game vector is not empty, so that we can load the last game
-            if let Some(last_game) = json_state.games.last() {
-                if let Some(guesses) = &last_game.guesses {
-                    gamestate.
-                    game_state.guesses = guesses.clone();
-                }
-                if let Some(answer) = &last_game.answer {
-                    game_state.word = answer.clone();
-                }
-            }
-        }
-    }
-}
-*/
 
 fn generate_game_state( final_config: &parseconfig::MergedConfig) -> GameState {
     let mut ret_GS = GameState {
@@ -211,29 +157,6 @@ fn check_voc_lists(final_set : &Vec<String>, acc_set : &Vec<String>) -> bool {
     return true;
 }
 
-/*
-fn write_to_JSON(recorded_state : &mut JSONState,state_unwritten :GameState) -> Option<()> {
-
-    recorded_state.total_rounds = 
-        match recorded_state.total_rounds{
-            None => Some(1),
-            Some(n) => Some(n+1)
-        };
-
-    let new_game_state = JSONAux{
-        answer : Some(state_unwritten.word),
-        guesses : Some(state_unwritten.guesses)
-    };
-
-    recorded_state.games.push(new_game_state);
-
-
-    let json_str = serde_json::to_string_pretty(&recorded_state).unwrap();
-    let mut file = File::create("state_write.json").ok()?;
-    file.write_all(json_str.as_bytes()).ok()?;
-    Some(())
-}
-*/
 
 #[derive(PartialEq)]
 enum Color{
@@ -427,3 +350,117 @@ fn muilti_round(config_info : &parseconfig::MergedConfig , game_info : &mut Game
     }
 
 }
+
+/*
+fn write_to_JSON(recorded_state : &mut JSONState,state_unwritten :GameState) -> Option<()> {
+
+    recorded_state.total_rounds = 
+        match recorded_state.total_rounds{
+            None => Some(1),
+            Some(n) => Some(n+1)
+        };
+
+    let new_game_state = JSONAux{
+        answer : Some(state_unwritten.word),
+        guesses : Some(state_unwritten.guesses)
+    };
+
+    recorded_state.games.push(new_game_state);
+
+
+    let json_str = serde_json::to_string_pretty(&recorded_state).unwrap();
+    let mut file = File::create("state_write.json").ok()?;
+    file.write_all(json_str.as_bytes()).ok()?;
+    Some(())
+}
+*/
+
+/*
+fn merge_state(game_state : &mut GameState, json_state : &Option<JSONState>) -> () {
+    if let Some(json_state) = json_state {
+        if let Some(total_rounds) = json_state.total_rounds {
+            game_state.trys = total_rounds;
+        }
+        if !json_state.games.is_empty() { // game vector is not empty, so that we can load the last game
+            if let Some(last_game) = json_state.games.last() {
+                if let Some(guesses) = &last_game.guesses {
+                    gamestate.
+                    game_state.guesses = guesses.clone();
+                }
+                if let Some(answer) = &last_game.answer {
+                    game_state.word = answer.clone();
+                }
+            }
+        }
+    }
+}
+*/
+
+/*
+{
+  "total_rounds": 1,
+  "games": [ 
+    {
+      "answer": "PROXY",
+      "guesses": ["CRANE", "PROUD", "PROXY"]
+    }
+  ]
+}
+*/
+
+#[derive(Debug, Serialize, Deserialize)]
+struct JSONAux {
+    answer: Option<String>,
+    guesses: Option<Vec<String>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct JSONState {
+    total_rounds: Option<u32>,
+    games: Vec<JSONAux>,
+}
+
+impl JSONState {
+    fn get_state_form_JSON(JSON_path : &str) -> Option<JSONState> {
+        let data = match fs::read_to_string(JSON_path) {
+            Ok(s) => s,
+            Err(_) => {
+                println!("No existing state file found, starting a new game.");
+                return None;
+            }
+        };
+        let cfg: JSONState = serde_json::from_str(&data).expect("JSON was not well-formatted and cannot be parsed");
+        println!("解析结果: {:?}", cfg);
+        Some(cfg)
+    }
+
+    fn update_JSONstate(&mut self, new_game_state : & GameState){
+        self.total_rounds = Some(self.total_rounds.unwrap_or(1) + 1);
+        let new_record = JSONAux{
+            answer : Some(new_game_state.word.clone()),
+            guesses : {
+                let mut temp = Vec::new();
+                for item in &new_game_state.trys{
+                    print!("{}",item.0);
+                    temp.push(item.0.clone());
+                }
+                Some(temp)
+            }
+        };
+        
+        
+        self.games.push(new_record);
+    }
+
+    fn write_to_JSON(&mut self) -> Option<()> {
+        let json_str = serde_json::to_string_pretty(&self).ok()?;
+        println!("解析结果: {:?}", json_str);
+        let mut file = File::create("state_write.json").ok()?;
+        file.write_all(json_str.as_bytes()).ok()?;
+        Some(())
+    }
+
+}
+
+
+
