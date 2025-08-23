@@ -240,6 +240,26 @@ enum Color{
     GREY,
 }
 
+impl Color{
+    fn test_print(&self){
+        match self {
+            Color::RED => print!("R"),
+            Color::YELLOW => print!("Y"),
+            Color::GREEN => print!("G"),
+            Color::GREY => print!("X"),
+        }
+    }
+
+    fn colored_print(&self,letter : char){
+        match self {
+            Color::RED => print!("{}",letter.to_string().red()),
+            Color::YELLOW => print!("{}",letter.to_string().yellow()),
+            Color::GREEN => print!("{}",letter.to_string().green()),
+            Color::GREY => print!("{}",letter.to_string().cyan()),
+        }
+    }
+}
+
 
 fn check_word(ans : &str, guess: &str) -> [Color;5] {
     let mut green : [bool ; 5] = [false,false,false,false,false];
@@ -263,15 +283,15 @@ fn check_word(ans : &str, guess: &str) -> [Color;5] {
     for i in 0..5{
         if yellow[i] { 
             ret[i] = Color::YELLOW; 
-            print!("Y"); 
+            //print!("Y"); 
         }
         else if green[i] { 
             ret[i] = Color::GREEN; 
-            print!("G"); 
+            //print!("G"); 
         }
         else {
             ret[i] = Color::RED; 
-            print!("R"); 
+            //print!("R"); 
         }
     }
     ret
@@ -299,9 +319,17 @@ fn game_round(config_info : &parseconfig::MergedConfig , game_info : &GameState)
         }
     }
     
-    let color_info = check_word(game_info.word,trimmed_guess);
+    let color_info = check_word(&game_info.word,trimmed_guess);
     if config_info.is_tty{
-        
+        for i in 0..5{
+            color_info[i].test_print();
+        }
+    }
+    else {
+        for i in 0..5{
+            color_info[i].colored_print(new_guess.chars().nth(i).expect("UNREACHABLE"));
+        }
+
     }
 
 
