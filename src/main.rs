@@ -2,6 +2,7 @@ mod parseconfig;
 use rand::Rng;
 use std::fs;
 use std::fs::File;
+use std::io::Write;
 use std::io::{BufRead, BufReader};
 use std::collections::HashSet;
 use rand::seq::SliceRandom; 
@@ -10,17 +11,34 @@ use rand::rngs::StdRng;
 use serde::{Deserialize, Serialize};
 use serde_json;
 
+use std::io;
+use colored::*;
+
+
 fn main() -> () {
     let final_config = parseconfig::parse_config();
+
     let mut game_state = generate_game_state(&final_config);
-    let JSON_path = final_config.state_path;
+    let JSON_path = &final_config.state_path;
     if let Some(JSON_path) = JSON_path {
         let state_from_JSON = JSONState::get_state_form_JSON(&JSON_path);
         merge_state(&mut game_state,&state_from_JSON);
     }
-
+    // write_to_JSON();
+     game_round(&final_config,&game_state);
+    // check_word("BBBAA","AAABB");
 }
-
+/*
+{
+  "total_rounds": 1,
+  "games": [ 
+    {
+      "answer": "PROXY",
+      "guesses": ["CRANE", "PROUD", "PROXY"]
+    }
+  ]
+}
+*/
 
 #[derive(Debug, Serialize, Deserialize)]
 struct JSONAux {
@@ -80,18 +98,34 @@ fn generate_game_state( final_config: &parseconfig::MergedConfig) -> GameState {
 
     ret_GS.final_set = read_voc_list(&(final_config.final_set_path)).expect("Failed to read final set");
     ret_GS.acc_set = read_voc_list(&(final_config.acc_set_path)).expect("Failed to read acceptable set");
+    
+    // words store must be sorted & capitalized
+    for item in &mut ret_GS.final_set{
+        *item = item.to_uppercase();
+    }
+    ret_GS.final_set.sort();
+
+    for item in &mut ret_GS.acc_set{
+        *item = item.to_uppercase();
+    }
+    ret_GS.acc_set.sort();
+
+    // word list should be unique, 5-letter-long, final contained in acc
     if !check_voc_lists(&ret_GS.final_set, &ret_GS.acc_set) {
         panic!("Error: wordlist invalid.");
     }
     ret_GS.trys = 1;
 
+    // in rand mode use shuffle & select 1-n in nth day
     if final_config.random {
         let mut rng = StdRng::seed_from_u64(final_config.seed.unwrap_or(20220123));
         ret_GS.final_set.shuffle(&mut rng);
         // println!("Shuffled final set: {:?}", ret_GS.final_set);
-        ret_GS.days = final_config.day.unwrap_or(1);   
+        ret_GS.days = final_config.day.unwrap_or(1);
+        ret_GS.word =  ret_GS.final_set[ret_GS.days as usize].clone();  
     }
     else{
+        ret_GS.days = 1;
         ret_GS.word = final_config.given_word.clone().expect("UNREACHABLE : In fixed mode, word is ensured to be given");
     }
     ret_GS
@@ -176,16 +210,99 @@ fn check_voc_lists(final_set : &Vec<String>, acc_set : &Vec<String>) -> bool {
     return true;
 }
 
-fn game_round(game_state : & GameState, final_config : & parseconfig::MergedConfig) -> () {
+
+fn write_to_JSON(recorded_state : &mut JSONState,state_unwritten :GameState) -> Option<()> {
+
+    recorded_state.total_rounds = 
+        match recorded_state.total_rounds{
+            None => Some(1),
+            Some(n) => Some(n+1)
+        };
+
+    let new_game_state = JSONAux{
+        answer : Some(state_unwritten.word),
+        guesses : Some(state_unwritten.guesses)
+    };
+
+    recorded_state.games.push(new_game_state);
+
+
+    let json_str = serde_json::to_string_pretty(&recorded_state).unwrap();
+    let mut file = File::create("state_write.json").ok()?;
+    file.write_all(json_str.as_bytes()).ok()?;
+    Some(())
+}
+
+enum Color{
+    RED,
+    YELLOW,
+    GREEN,
+    GREY,
+}
+
+
+fn check_word(ans : &str, guess: &str) -> [Color;5] {
+    let mut green : [bool ; 5] = [false,false,false,false,false];
+    for i in 0..5{
+        green[i] = ans.chars().nth(i) == guess.chars().nth(i);
+    }
     
+    let mut yellow : [bool ; 5] = [false,false,false,false,false];
+    let mut ans_yellow : [bool ; 5] = [false,false,false,false,false];
+    for i in 0..5{
+        for j in 0..5{
+            yellow[i] = !green[i] && !green[j] && !ans_yellow[j] && ans.chars().nth(j) == guess.chars().nth(i);
+            if yellow[i]{
+                ans_yellow[j] = true;
+                break;
+            }
+        }
+    }
+
+    let mut ret : [Color ; 5] = [Color::GREY,Color::GREY,Color::GREY,Color::GREY,Color::GREY];
+    for i in 0..5{
+        if yellow[i] { 
+            ret[i] = Color::YELLOW; 
+            print!("Y"); 
+        }
+        else if green[i] { 
+            ret[i] = Color::GREEN; 
+            print!("G"); 
+        }
+        else {
+            ret[i] = Color::RED; 
+            print!("R"); 
+        }
+    }
+    ret
 }
 
-/* 
-
-fn get_random_word( words : &mut Vec<String>) -> String {
-    let lenth = words.len();
-    let num = rand::rng().random_range(0.. lenth);
-    words.remove(num);
-    words[num].clone()
+fn check_valid_guess(guess : String,game_info : &GameState) -> bool{
+    let contain_property = game_info.acc_set.contains(&guess);
+    let lenth_property = guess.len() == 5;
+    return contain_property && lenth_property;
 }
-*/
+
+
+fn game_round(config_info : &parseconfig::MergedConfig , game_info : &GameState){
+
+    let mut new_guess = String::new();
+    let mut trimmed_guess;
+    loop{
+        io::stdin().read_line(&mut new_guess).expect("IO Error");
+        trimmed_guess = new_guess.trim_end();
+        if check_valid_guess(trimmed_guess.to_string(),game_info){
+            break;
+        }
+        else{
+            print!("INVALID");
+        }
+    }
+    
+    let color_info = check_word(game_info.word,trimmed_guess);
+    if config_info.is_tty{
+        
+    }
+
+
+}
