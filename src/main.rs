@@ -1,21 +1,77 @@
 mod parseconfig;
 use rand::Rng;
+use std::fs;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::collections::HashSet;
 use rand::seq::SliceRandom; 
 use rand::SeedableRng; 
 use rand::rngs::StdRng;
+use serde::{Deserialize, Serialize};
+use serde_json;
 
 fn main() -> () {
     let final_config = parseconfig::parse_config();
-    let GameState = generate_game_state(&final_config);
+    let mut game_state = generate_game_state(&final_config);
+    let JSON_path = final_config.state_path;
+    if let Some(JSON_path) = JSON_path {
+        let state_from_JSON = JSONState::get_state_form_JSON(&JSON_path);
+        merge_state(&mut game_state,&state_from_JSON);
+    }
+
 }
 
+
+#[derive(Debug, Serialize, Deserialize)]
+struct JSONAux {
+    answer: Option<String>,
+    guesses: Option<Vec<String>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct JSONState {
+    total_rounds: Option<u32>,
+    games: Vec<JSONAux>,
+}
+
+impl JSONState {
+    fn get_state_form_JSON(JSON_path : &str) -> Option<JSONState> {
+        let data = match fs::read_to_string(JSON_path) {
+            Ok(s) => s,
+            Err(_) => {
+                println!("No existing state file found, starting a new game.");
+                return None;
+            }
+        };
+        let cfg: JSONState = serde_json::from_str(&data).expect("JSON was not well-formatted and cannot be parsed");
+        // println!("解析结果: {:?}", cfg);
+        Some(cfg)
+    }
+}
+
+
+fn merge_state(game_state : &mut GameState, json_state : &Option<JSONState>) -> () {
+    if let Some(json_state) = json_state {
+        if let Some(total_rounds) = json_state.total_rounds {
+            game_state.trys = total_rounds;
+        }
+        if !json_state.games.is_empty() { // game vector is not empty, so that we can load the last game
+            if let Some(last_game) = json_state.games.last() {
+                if let Some(guesses) = &last_game.guesses {
+                    game_state.guesses = guesses.clone();
+                }
+                if let Some(answer) = &last_game.answer {
+                    game_state.word = answer.clone();
+                }
+            }
+        }
+    }
+}
 
 fn generate_game_state( final_config: &parseconfig::MergedConfig) -> GameState {
     let mut ret_GS = GameState {
         word: String::new(),
+        guesses: Vec::new(),
         final_set: Vec::new(),
         acc_set: Vec::new(),
         days: 1,
@@ -44,6 +100,7 @@ fn generate_game_state( final_config: &parseconfig::MergedConfig) -> GameState {
 
 struct GameState {
     word : String,
+    guesses : Vec<String>,
 
     final_set : Vec<String>,
     acc_set : Vec<String>,

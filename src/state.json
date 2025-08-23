@@ -1,0 +1,9 @@
+{
+  "total_rounds": 1,
+  "games": [ 
+    {
+      "answer": "PROXY",
+      "guesses": ["CRANE", "PROUD", "PROXY"]
+    }
+  ]
+}
