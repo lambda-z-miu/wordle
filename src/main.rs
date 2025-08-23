@@ -13,6 +13,7 @@ use serde_json;
 
 use std::io;
 use colored::*;
+use std::collections::HashMap;
 
 
 fn main() -> () {
@@ -21,7 +22,7 @@ fn main() -> () {
     let JSON_path = &final_config.state_path;
     if let Some(JSON_path) = JSON_path {
         let state_from_JSON = JSONState::get_state_form_JSON(&JSON_path);
-        merge_state(&mut game_state,&state_from_JSON);
+        // merge_state(&mut game_state,&state_from_JSON);
     }
     // write_to_JSON();
 
@@ -67,7 +68,7 @@ impl JSONState {
     }
 }
 
-
+/*
 fn merge_state(game_state : &mut GameState, json_state : &Option<JSONState>) -> () {
     if let Some(json_state) = json_state {
         if let Some(total_rounds) = json_state.total_rounds {
@@ -76,6 +77,7 @@ fn merge_state(game_state : &mut GameState, json_state : &Option<JSONState>) -> 
         if !json_state.games.is_empty() { // game vector is not empty, so that we can load the last game
             if let Some(last_game) = json_state.games.last() {
                 if let Some(guesses) = &last_game.guesses {
+                    gamestate.
                     game_state.guesses = guesses.clone();
                 }
                 if let Some(answer) = &last_game.answer {
@@ -85,15 +87,15 @@ fn merge_state(game_state : &mut GameState, json_state : &Option<JSONState>) -> 
         }
     }
 }
+*/
 
 fn generate_game_state( final_config: &parseconfig::MergedConfig) -> GameState {
     let mut ret_GS = GameState {
         word: String::new(),
-        guesses: Vec::new(),
         final_set: Vec::new(),
         acc_set: Vec::new(),
         days: 1,
-        trys: 1,
+        trys: Vec::new(),
     };
 
     ret_GS.final_set = read_voc_list(&(final_config.final_set_path)).expect("Failed to read final set");
@@ -114,7 +116,6 @@ fn generate_game_state( final_config: &parseconfig::MergedConfig) -> GameState {
     if !check_voc_lists(&ret_GS.final_set, &ret_GS.acc_set) {
         panic!("Error: wordlist invalid.");
     }
-    ret_GS.trys = 1;
 
     // in rand mode use shuffle & select 1-n in nth day
     if final_config.random {
@@ -132,15 +133,15 @@ fn generate_game_state( final_config: &parseconfig::MergedConfig) -> GameState {
 }
 
 
+
 struct GameState {
     word : String,
-    guesses : Vec<String>,
 
     final_set : Vec<String>,
     acc_set : Vec<String>,
-    trys : u32,
-
     days : u32,
+
+    trys : Vec<(String,[Color;5])>,
 }
 
 fn read_voc_list(file_path : &str) -> Option<Vec<String>> {
@@ -210,7 +211,7 @@ fn check_voc_lists(final_set : &Vec<String>, acc_set : &Vec<String>) -> bool {
     return true;
 }
 
-
+/*
 fn write_to_JSON(recorded_state : &mut JSONState,state_unwritten :GameState) -> Option<()> {
 
     recorded_state.total_rounds = 
@@ -232,7 +233,9 @@ fn write_to_JSON(recorded_state : &mut JSONState,state_unwritten :GameState) -> 
     file.write_all(json_str.as_bytes()).ok()?;
     Some(())
 }
+*/
 
+#[derive(PartialEq)]
 enum Color{
     RED,
     YELLOW,
@@ -255,7 +258,7 @@ impl Color{
             Color::RED => print!("{}",letter.to_string().red()),
             Color::YELLOW => print!("{}",letter.to_string().yellow()),
             Color::GREEN => print!("{}",letter.to_string().green()),
-            Color::GREY => print!("{}",letter.to_string().cyan()),
+            Color::GREY => print!("{}",letter.to_string().bright_black()),
         }
     }
 }
@@ -303,12 +306,17 @@ fn check_valid_guess(guess : String,game_info : &GameState) -> bool{
     return contain_property && lenth_property;
 }
 
+fn check_valid_guess_difficult(){
 
-fn game_round(config_info : &parseconfig::MergedConfig , game_info : &GameState) -> bool {
+}
+
+
+fn game_round(config_info : &parseconfig::MergedConfig , game_info : &GameState, alphabet : &mut HashMap<char,Color>) -> (String,[Color;5]) {
 
     let mut new_guess = String::new();
     let mut trimmed_guess;
     loop{
+        new_guess.clear();
         io::stdin().read_line(&mut new_guess).expect("IO Error");
         trimmed_guess = new_guess.trim_end();
         if check_valid_guess(trimmed_guess.to_string(),game_info){
@@ -318,11 +326,31 @@ fn game_round(config_info : &parseconfig::MergedConfig , game_info : &GameState)
             println!("INVALID");
         }
     }
-    
+
     let color_info = check_word(&game_info.word,trimmed_guess);
+
+    for i in 0..5{
+        let letter = new_guess.chars().nth(i).expect("UNREACHABLE");
+        let color = &color_info[i];
+        if *color == Color::GREEN{
+            alphabet.insert(letter.clone(),Color::GREEN);
+        }
+        else if *color == Color::YELLOW && alphabet[&letter] != Color::GREEN{
+            alphabet.insert(letter.clone(),Color::YELLOW);
+        }
+        else if *color == Color::RED && alphabet[&letter] != Color::GREEN && alphabet[&letter] != Color::YELLOW{
+            alphabet.insert(letter.clone(),Color::RED);
+        }
+    }
+    
     if config_info.is_tty{
         for i in 0..5{
             color_info[i].test_print();
+        }
+        println!("");
+
+        for letter in 'A'..='Z'{
+            alphabet[&letter].test_print();
         }
         println!("");
     }
@@ -330,24 +358,35 @@ fn game_round(config_info : &parseconfig::MergedConfig , game_info : &GameState)
         for i in 0..5{
             color_info[i].colored_print(new_guess.chars().nth(i).expect("UNREACHABLE"));
         }
+        print!(" ");
+        for letter in 'A'..='Z'{
+            alphabet[&letter].colored_print(letter);
+        }
         println!("");
     }
-    game_info.word == trimmed_guess
+
+    (trimmed_guess.to_string(),color_info)
 }
 
 fn muilti_round(config_info : &parseconfig::MergedConfig , game_info : &mut GameState){
     let mut win_flag : bool = false;
-    let mut round_cnt = 0;
+
+    let mut alphabet : HashMap<char,Color> = HashMap::<char,Color>::new();
+    for letter in 'A'..='Z'{
+        alphabet.insert(letter,Color::GREY);
+    }
+
     for i in 0..6{
-        win_flag = game_round(config_info,game_info);
-        round_cnt += 1;
+        let round_result = game_round(config_info,game_info,&mut alphabet);
+        win_flag = round_result.0 == game_info.word;
+        game_info.trys.push(round_result);
         if win_flag {
             break;
         }
     }
     
     if win_flag{
-        print!("CORRECT {}",round_cnt);
+        print!("CORRECT {}",game_info.trys.len());
     }
     else {
         print!("FAILED {}",game_info.word);
