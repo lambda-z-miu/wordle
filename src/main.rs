@@ -17,7 +17,6 @@ use colored::*;
 
 fn main() -> () {
     let final_config = parseconfig::parse_config();
-
     let mut game_state = generate_game_state(&final_config);
     let JSON_path = &final_config.state_path;
     if let Some(JSON_path) = JSON_path {
@@ -25,7 +24,8 @@ fn main() -> () {
         merge_state(&mut game_state,&state_from_JSON);
     }
     // write_to_JSON();
-     game_round(&final_config,&game_state);
+
+    muilti_round(&final_config,&mut game_state);
     // check_word("BBBAA","AAABB");
 }
 /*
@@ -304,7 +304,7 @@ fn check_valid_guess(guess : String,game_info : &GameState) -> bool{
 }
 
 
-fn game_round(config_info : &parseconfig::MergedConfig , game_info : &GameState){
+fn game_round(config_info : &parseconfig::MergedConfig , game_info : &GameState) -> bool {
 
     let mut new_guess = String::new();
     let mut trimmed_guess;
@@ -315,7 +315,7 @@ fn game_round(config_info : &parseconfig::MergedConfig , game_info : &GameState)
             break;
         }
         else{
-            print!("INVALID");
+            println!("INVALID");
         }
     }
     
@@ -324,13 +324,33 @@ fn game_round(config_info : &parseconfig::MergedConfig , game_info : &GameState)
         for i in 0..5{
             color_info[i].test_print();
         }
+        println!("");
     }
     else {
         for i in 0..5{
             color_info[i].colored_print(new_guess.chars().nth(i).expect("UNREACHABLE"));
         }
-
+        println!("");
     }
+    game_info.word == trimmed_guess
+}
 
+fn muilti_round(config_info : &parseconfig::MergedConfig , game_info : &mut GameState){
+    let mut win_flag : bool = false;
+    let mut round_cnt = 0;
+    for i in 0..6{
+        win_flag = game_round(config_info,game_info);
+        round_cnt += 1;
+        if win_flag {
+            break;
+        }
+    }
+    
+    if win_flag{
+        print!("CORRECT {}",round_cnt);
+    }
+    else {
+        print!("FAILED {}",game_info.word);
+    }
 
 }
