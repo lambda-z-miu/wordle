@@ -306,8 +306,38 @@ fn check_valid_guess(guess : String,game_info : &GameState) -> bool{
     return contain_property && lenth_property;
 }
 
-fn check_valid_guess_difficult(){
+fn check_valid_guess_difficult(guess : String,game_info : &GameState) -> bool{
+    let guess_history = &game_info.trys;
 
+    
+    for item in guess_history{
+        let mut mark : [bool ; 5] = [false,false,false,false,false]; // initialized every try
+        for i in 0..5{
+            if item.1[i] == Color::GREEN{ // green letters must appear in the same position
+                if item.0.chars().nth(i) == guess.chars().nth(i){
+                    mark[i] = true;
+                }
+                else{
+                    return false;
+                }
+            }
+
+            else if item.1[i] == Color::YELLOW{ // yellow letters must appear in the word
+                let mut appear : bool = false;
+                for j in 0..5{
+                    if item.0.chars().nth(i) == guess.chars().nth(j) && !mark[j]{
+                        mark[j] = true;
+                        appear = true;
+                        break;
+                    }
+                }
+                if !appear{
+                    return false;
+                }
+            }
+        }
+    }
+    return true;
 }
 
 
@@ -319,7 +349,11 @@ fn game_round(config_info : &parseconfig::MergedConfig , game_info : &GameState,
         new_guess.clear();
         io::stdin().read_line(&mut new_guess).expect("IO Error");
         trimmed_guess = new_guess.trim_end();
-        if check_valid_guess(trimmed_guess.to_string(),game_info){
+        let checker = match config_info.difficult{
+            true => check_valid_guess_difficult,
+            false => check_valid_guess,
+        };
+        if checker(trimmed_guess.to_string(),game_info){
             break;
         }
         else{
