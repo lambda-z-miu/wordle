@@ -4,8 +4,8 @@ use serde::Deserialize;
 use std::fs;
 
 
-const DEFAULT_FINAL_SET : &str  = "C:\\Users\\heziy\\Desktop\\rust\\wordle\\src\\words.txt";
-const DEFAULT_ACC_SET : &str  = "C:\\Users\\heziy\\Desktop\\rust\\wordle\\src\\words.txt";
+const DEFAULT_FINAL_SET : &str  = "words.txt";
+const DEFAULT_ACC_SET : &str  = "words.txt";
 
 /*
   "random": true,

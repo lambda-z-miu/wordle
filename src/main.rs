@@ -33,13 +33,12 @@ fn main() -> () {
             opt_path = "state_mem.json";
         }
     }
+    let mut game_state = generate_game_state(&final_config);
 
     if final_config.random{
         loop{
-            let mut game_state = generate_game_state(&final_config);
             muilti_round(&final_config,&mut game_state);
             state_from_JSON.update_JSONstate(&game_state);
-            print!("{}",opt_path);
             state_from_JSON.write_to_JSON(opt_path);
             if final_config.stats{
                 let stat_data = state_from_JSON.stat();
@@ -59,6 +58,7 @@ fn main() -> () {
             if trimmed_input == 'q'.to_string(){
                 break;
             }
+            reset_game_state(&final_config,&mut game_state);
         }
     }
     else{
@@ -72,11 +72,21 @@ fn main() -> () {
         }
     }
 
-
     
-    // write_to_JSON();
+}
 
-    
+
+fn reset_game_state (final_config : &parseconfig::MergedConfig, game_record : &mut GameState){
+    game_record.trys.clear();
+    game_record.days += 1;
+    game_record.word  = {
+        if final_config.random {
+            game_record.final_set[game_record.days as usize].clone()
+        }
+        else{
+            unreachable!("should not reach here");
+        }
+    }
 }
 
 fn generate_game_state( final_config: &parseconfig::MergedConfig) -> GameState {
@@ -392,6 +402,8 @@ fn muilti_round(config_info : &parseconfig::MergedConfig , game_info : &mut Game
     else {
         println!("FAILED {}",game_info.word);
     }
+
+    game_info.days += 1;
 
 }
 
