@@ -14,22 +14,66 @@ use serde_json;
 use std::io;
 use colored::*;
 use std::collections::HashMap;
+use std::cmp::min;
 
 
 fn main() -> () {
     let final_config = parseconfig::parse_config();
-    let mut game_state = generate_game_state(&final_config);
     
     let JSON_path = &final_config.state_path;
+    let mut state_from_JSON : JSONState =  JSONState {
+        total_rounds: None,
+        games: Vec::new(),
+    }; // set a default empty state
 
-    if let Some(JSON_path) = JSON_path {
-        let mut state_from_JSON = JSONState::get_state_form_JSON(&JSON_path).expect("Unable to read JSON file");
-        muilti_round(&final_config,&mut game_state);
-        state_from_JSON.update_JSONstate(&game_state);
-        state_from_JSON.write_to_JSON();
-        // check_word("BBBAA","AAABB");
+    let mut opt_path = "tmp.json";
+    if let Some(JSON_path) = JSON_path{
+        if let Some(state) = JSONState::get_state_form_JSON(&JSON_path){
+            state_from_JSON = state;
+            opt_path = "state_mem.json";
+        }
     }
 
+    if final_config.random{
+        loop{
+            let mut game_state = generate_game_state(&final_config);
+            muilti_round(&final_config,&mut game_state);
+            state_from_JSON.update_JSONstate(&game_state);
+            print!("{}",opt_path);
+            state_from_JSON.write_to_JSON(opt_path);
+            if final_config.stats{
+                let stat_data = state_from_JSON.stat();
+                stat_data.print();
+            }
+            println!("insert q to end");
+            let mut input = String ::new();
+            io::stdin().read_line(&mut input).expect("unable to read");
+
+            if opt_path == "tmp.json"{
+                fs::remove_file("tmp.json").expect("Unable to delete tmp");
+            }
+            
+
+            
+            let trimmed_input = input.trim_end();
+            if trimmed_input == 'q'.to_string(){
+                break;
+            }
+        }
+    }
+    else{
+        let mut game_state = generate_game_state(&final_config);
+        muilti_round(&final_config,&mut game_state);
+        state_from_JSON.update_JSONstate(&game_state);
+        state_from_JSON.write_to_JSON("state_write.json");
+        if final_config.stats{
+            let stat_data = state_from_JSON.stat();
+            stat_data.print();
+        }
+    }
+
+
+    
     // write_to_JSON();
 
     
@@ -343,58 +387,13 @@ fn muilti_round(config_info : &parseconfig::MergedConfig , game_info : &mut Game
     }
     
     if win_flag{
-        print!("CORRECT {}",game_info.trys.len());
+        println!("CORRECT {}",game_info.trys.len());
     }
     else {
-        print!("FAILED {}",game_info.word);
+        println!("FAILED {}",game_info.word);
     }
 
 }
-
-/*
-fn write_to_JSON(recorded_state : &mut JSONState,state_unwritten :GameState) -> Option<()> {
-
-    recorded_state.total_rounds = 
-        match recorded_state.total_rounds{
-            None => Some(1),
-            Some(n) => Some(n+1)
-        };
-
-    let new_game_state = JSONAux{
-        answer : Some(state_unwritten.word),
-        guesses : Some(state_unwritten.guesses)
-    };
-
-    recorded_state.games.push(new_game_state);
-
-
-    let json_str = serde_json::to_string_pretty(&recorded_state).unwrap();
-    let mut file = File::create("state_write.json").ok()?;
-    file.write_all(json_str.as_bytes()).ok()?;
-    Some(())
-}
-*/
-
-/*
-fn merge_state(game_state : &mut GameState, json_state : &Option<JSONState>) -> () {
-    if let Some(json_state) = json_state {
-        if let Some(total_rounds) = json_state.total_rounds {
-            game_state.trys = total_rounds;
-        }
-        if !json_state.games.is_empty() { // game vector is not empty, so that we can load the last game
-            if let Some(last_game) = json_state.games.last() {
-                if let Some(guesses) = &last_game.guesses {
-                    gamestate.
-                    game_state.guesses = guesses.clone();
-                }
-                if let Some(answer) = &last_game.answer {
-                    game_state.word = answer.clone();
-                }
-            }
-        }
-    }
-}
-*/
 
 /*
 {
@@ -420,6 +419,7 @@ struct JSONState {
     games: Vec<JSONAux>,
 }
 
+
 impl JSONState {
     fn get_state_form_JSON(JSON_path : &str) -> Option<JSONState> {
         let data = match fs::read_to_string(JSON_path) {
@@ -430,7 +430,7 @@ impl JSONState {
             }
         };
         let cfg: JSONState = serde_json::from_str(&data).expect("JSON was not well-formatted and cannot be parsed");
-        println!("解析结果: {:?}", cfg);
+        // println!("解析结果: {:?}", cfg);
         Some(cfg)
     }
 
@@ -441,7 +441,7 @@ impl JSONState {
             guesses : {
                 let mut temp = Vec::new();
                 for item in &new_game_state.trys{
-                    print!("{}",item.0);
+                    // print!("{}",item.0);
                     temp.push(item.0.clone());
                 }
                 Some(temp)
@@ -452,15 +452,113 @@ impl JSONState {
         self.games.push(new_record);
     }
 
-    fn write_to_JSON(&mut self) -> Option<()> {
+    fn write_to_JSON(&mut self,write_path:&str) -> Option<()> {
         let json_str = serde_json::to_string_pretty(&self).ok()?;
-        println!("解析结果: {:?}", json_str);
-        let mut file = File::create("state_write.json").ok()?;
+        // println!("解析结果: {:?}", json_str);
+        let mut file = File::create(write_path).ok()?;
         file.write_all(json_str.as_bytes()).ok()?;
         Some(())
     }
 
+    fn stat(&self) -> StatData {
+        let mut win_games = 0;
+        let mut word_count : Vec<WordCount> = Vec::new();
+        let mut total_guess = 0;
+
+        for game in &self.games{ // for each game
+            if let Some(answer) = &game.answer{
+                if let Some(guesses) = &game.guesses{ // if answer & guesses is not None
+                    for guess in guesses{  //for every guess
+                        let mut found = false;
+                        for record in &mut word_count{
+                            if record.word == *guess{
+                                record.cnt += 1;
+                                found = true;
+                                break;
+                            }
+                        }
+
+                        if !found{
+                            word_count.push(WordCount{ word : guess.to_string(), cnt : 1 });
+                        }
+
+                        if guess == answer {
+                            win_games += 1;
+                            total_guess += guesses.len();
+                        }
+                    }
+                }   
+            }
+        }
+
+        let win_rate : f32 = (win_games as f32) / (self.total_rounds.expect("UNREACHABLE") as f32);
+        let avg_trys : f32 = (total_guess as f32) / (win_games as f32);
+        word_count.sort();
+
+        let ret = StatData {
+            win_rate : win_rate,
+            avg_trys : avg_trys,
+            freq_words : {
+                let mut tmp : [Option<WordCount> ; 5] = [None,None,None,None,None];
+                for i in 0..5{
+                    if i < word_count.len(){
+                        tmp[i] = Some(word_count[i].clone());
+                    }
+                }
+                tmp
+            }
+        };
+
+        ret
+
+
+    
+    }
+}
+
+struct StatData{
+    win_rate : f32,
+    avg_trys : f32,
+    freq_words : [Option<WordCount> ; 5],
+}
+
+impl StatData{
+    fn print(&self){
+        println!("Win Rate : {}",self.win_rate);
+        println!("Avergae Guess : {}",self.avg_trys);
+        for i in 0..5{
+            if let Some(word_count) = &self.freq_words[i]{
+                println!("{} th : {} , {} times", i + 1 ,word_count.word,word_count.cnt);
+            }
+        }
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+struct WordCount{
+    word : String,
+    cnt : u32,
 }
 
 
+impl Ord for WordCount{
+    fn cmp(&self, other : &WordCount) -> std::cmp::Ordering{
+        if self.cnt != other.cnt{
+            return self.cnt.cmp(&other.cnt).reverse();
+        }
+        else{
+            return self.word.cmp(&other.word);
+        }
+    }
+}
 
+impl PartialOrd for WordCount {
+    fn partial_cmp(&self, other: &WordCount) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+
+// TODOs :
+// --word consistency
+// -tty test
