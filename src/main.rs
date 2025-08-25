@@ -154,7 +154,7 @@ impl eframe::App for MyApp {
                         };
 
                         let stroke_color = egui::Color32::GRAY;       // 边框灰色
-                        let stroke = egui::Stroke::new(2.0, strPoke_color); // 边框粗细和颜色
+                        let stroke = egui::Stroke::new(2.0, stroke_color); // 边框粗细和颜色
 
                         // 先画填充
                                 painter.rect_filled(rect, 5.0, fill_color);
