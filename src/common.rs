@@ -1,4 +1,4 @@
-#[derive(PartialEq)]
+#[derive(PartialEq,Copy,Clone)]
 pub enum Color{
     RED,
     YELLOW,
@@ -16,4 +16,33 @@ pub struct MyApp {
     pub selected_key: Option<char>, // 最近点击的字母
     pub difficulty: String,         // 下拉菜单选择
 
+    pub game_state : GameState,
+    pub config : MergedConfig,
+
+}
+
+#[derive(Default)]
+pub struct GameState {
+    pub word : String,
+
+    pub final_set : Vec<String>,
+    pub acc_set : Vec<String>,
+    pub days : u32,
+
+    pub trys : Vec<(String,[Color;5])>,
+}
+
+#[derive(Default)]
+pub struct MergedConfig {
+    pub is_tty: bool,
+    pub random: bool,
+    pub difficult: bool,
+    pub stats : bool,
+    pub day : Option<u32>,
+    pub seed: Option<u64>,
+    pub final_set_path : String,
+    pub acc_set_path : String,
+    pub state_path: Option<String>,
+    pub given_word: Option<String>,
+    pub ui : bool,
 }

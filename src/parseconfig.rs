@@ -3,6 +3,9 @@ use clap::ArgGroup;
 use serde::Deserialize;
 use std::fs;
 
+use crate::common;
+use common::MergedConfig;
+
 
 const DEFAULT_FINAL_SET : &str  = "words.txt";
 const DEFAULT_ACC_SET : &str  = "words.txt";
@@ -70,6 +73,7 @@ struct CmdConfig {
     state_path: Option<String>,
     given_word: Option<String>,
     config_path: Option<String>,
+    ui : bool,
 }
 
 impl CmdConfig {
@@ -85,22 +89,12 @@ impl CmdConfig {
             acc_set_path: self.acc_set_path.clone().unwrap_or(DEFAULT_ACC_SET.to_string()),
             state_path: self.state_path.clone(),
             given_word: self.given_word.clone(),
+            ui : self.ui,
         }
     }
 }
 
-pub struct MergedConfig {
-    pub is_tty: bool,
-    pub random: bool,
-    pub difficult: bool,
-    pub stats : bool,
-    pub day : Option<u32>,
-    pub seed: Option<u64>,
-    pub final_set_path : String,
-    pub acc_set_path : String,
-    pub state_path: Option<String>,
-    pub given_word: Option<String>,
-}
+
 
 
 
@@ -149,6 +143,9 @@ struct Args {
 
     #[arg(short = 'r', long = "random")]
     random: bool,
+
+    #[arg(short = 'u', long = "gui")]
+    ui: bool,
 }
 
 impl Args {
@@ -166,6 +163,7 @@ impl Args {
                 acc_set_path: self.acc_set_path,
                 state_path: self.state_path,
                 config_path: self.config_path,
+                ui : self.ui,
             };
         ret_GC.random = ret_GC.given_word.is_none();
 
@@ -188,6 +186,7 @@ fn merge_config(cmd_config: &CmdConfig, json_config: &JsonConfig) -> MergedConfi
             acc_set_path: String::new(),
             state_path: cmd_config.state_path.clone(),
             given_word: cmd_config.given_word.clone(),
+            ui : cmd_config.ui,
         };
 
     if !cmd_config.random {
