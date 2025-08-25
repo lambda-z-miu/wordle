@@ -18,6 +18,7 @@ pub struct MyApp {
 
     pub game_state : GameState,
     pub config : MergedConfig,
+    pub entered : bool,
 
 }
 

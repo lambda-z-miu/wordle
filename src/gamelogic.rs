@@ -268,13 +268,13 @@ pub fn check_word(ans : &str, guess: &str) -> [Color;5] {
     ret
 }
 
-fn check_valid_guess(guess : String,game_info : &GameState) -> bool{
+pub fn check_valid_guess(guess : String,game_info : &GameState) -> bool{
     let contain_property = game_info.acc_set.contains(&guess);
     let lenth_property = guess.len() == 5;
     return contain_property && lenth_property;
 }
 
-fn check_valid_guess_difficult(guess : String,game_info : &GameState) -> bool{
+pub fn check_valid_guess_difficult(guess : String,game_info : &GameState) -> bool{
     let guess_history = &game_info.trys;
 
     

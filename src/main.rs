@@ -9,6 +9,7 @@ use common::Color;
 use eframe::egui;
 use egui::StrokeKind::Inside;
 use common::MyApp;
+use egui::RichText;
 
 
 const ui_green : egui::Color32 = egui::Color32::from_rgb(107,186,107);
@@ -29,6 +30,22 @@ impl MyApp {
             }
         }
     }
+
+    fn del_char(&mut self){
+        for rowindex in 0..6{
+            
+            if self.board_letter[rowindex][4].is_some(){
+                continue;
+            }
+
+            for colindex in 0..4{
+                if self.board_letter[rowindex][colindex].is_some() && self.board_letter[rowindex][colindex+1].is_none(){
+                    self.board_letter[rowindex][colindex] = None;
+                    return;
+                }
+            }
+        }
+    }
 }
 
 
@@ -37,11 +54,6 @@ impl MyApp {
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
 
-        /* 
-        if self.board_letter[4].is_some(){
-            
-        }
-        */
 
         let mut fonts = egui::FontDefinitions::default();
         // 加载外部字体
@@ -91,16 +103,42 @@ impl eframe::App for MyApp {
                 }
             });
 
+            ui.input(|i| {
+                if i.key_pressed(egui::Key::Backspace) {
+                    self.del_char();
+                }
+
+                if i.key_pressed(egui::Key::Enter) {
+                    self.entered = true;
+                }
+                // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!TODO   : WHEN ENTER, THER MUST BE A NEW LINE
+            });
+
             for j in 0..6{
                 let mut guess : String = String::new();
                 if self.board_letter[j][4].is_some(){          
                     for i in 0..5{
                         guess.push(self.board_letter[j][i].expect("UNREACHABLE"));
                     }
+
+                    let checker = match self.config.difficult{
+                        true => gamelogic::check_valid_guess_difficult,
+                        false => gamelogic::check_valid_guess,
+                    };
+
                     for i in 0..5{
                     let ret = gamelogic::check_word(&self.game_state.word,&guess);
                     self.board_color[j][i] = Some(ret[i]);
                     }
+
+
+                    if !checker(guess.clone(),&self.game_state){
+                        for i in 0..5{
+                            self.board_letter[j][i] = None;
+                            self.board_color[j][i] = None;
+                        }
+                    }
+                    self.entered = false;
                 }
             }
             
@@ -193,28 +231,101 @@ impl eframe::App for MyApp {
                 ui.add_space(ROW_GAP);
             }
 
-            ui.add_space(30.0);
+            ui.add_space(90.0);
 
-            ui.separator();
 
             // === 虚拟键盘 A-Z ===
-            ui.label("虚拟键盘:");
-            for chunk in ('A'..='Z').collect::<Vec<_>>().chunks(9) {
-                ui.horizontal(|ui| {
-                    for &ch in chunk {
-                        if ui.button(ch.to_string()).clicked() {
-                            self.selected_key = Some(ch);
+            
+            // 一些参数
+            /* 
+            const COLS: usize = 5;
+            const TILE: f32 = 60.0;   // 方块边长
+            const GAP: f32 = 5.0;     // 列间距
+            const ROW_GAP: f32 = 5.0; // 行间距
+                // 计算这一行的总宽度（所有方块 + 列间距）
+                let total_row_w = COLS as f32 * TILE + (COLS.saturating_sub(1)) as f32 * GAP;
+                // 当前可用宽度
+                let avail = ui.available_width();
+                // 让这一行整体居中所需的左侧留白
+                let left_pad = ((avail - total_row_w) * 0.5).max(0.0);
+            */
+
+            const ROW1_LEN : f32 = 54.0;
+            const ROW1_HEIGHT : f32 = 50.0;
+            const ROW1_GAP : f32 = 5.0;
+            const ROW2_LEN : f32 = 60.0;
+            const ROW2_GAP : f32 = 6.5;
+            const LONG_KEY : f32 = 87.0;
+            
+            let avail = ui.available_width();
+            let total_row1 = 10 as f32 * ROW1_LEN + 9 as f32 * ROW1_GAP;
+            let left_pad_1 = (avail - total_row1) * 0.5;
+
+            ui.horizontal(|ui| {
+               
+                ui.add_space(left_pad_1);
+
+                for letter in (['Q','W','E','R','T','Y','U','I','O','P']).into_iter().collect::<Vec<_>>(){
+                    let btn = ui.add_sized([ROW1_LEN, ROW1_HEIGHT], egui::Button::new(RichText::new(letter.to_string()).size(20.0)));//.color(Color32::BLACK)
+                    ui.add_space(ROW1_GAP);
+                    
+                    if btn.clicked() {
+                        self.add_char(letter);
+                    }
+                }
+
+                
+            });
+
+            ui.add_space(10.0);
+            
+            ui.horizontal(|ui| {
+                ui.add_space(left_pad_1);
+                for letter in (['A','S','D','F','G','H','J','K','L']).into_iter().collect::<Vec<_>>(){
+                        let btn = ui.add_sized([ROW2_LEN, ROW1_HEIGHT], egui::Button::new(RichText::new(letter.to_string()).size(20.0)));
+                        ui.add_space(ROW2_GAP);
+                        
+                        if btn.clicked() {
+                            self.add_char(letter);
                         }
                     }
-                });
-            }
+            });
 
-            if let Some(ch) = self.selected_key {
-                ui.label(format!("最近点击的键: {}", ch));
-            }
+            ui.add_space(10.0);
 
-            ui.separator();
+            ui.horizontal(|ui| {
+                ui.add_space(left_pad_1);
 
+                let btn_bk = ui.add_sized([LONG_KEY, ROW1_HEIGHT], egui::Button::new(RichText::new("BACK").size(20.0)));
+                if btn_bk.clicked(){
+                    self.del_char();
+                }
+                ui.add_space(ROW1_GAP);
+
+                for letter in (['Z','X','C','V','B','N','M']).into_iter().collect::<Vec<_>>(){
+                    let btn = ui.add_sized([ROW1_LEN, ROW1_HEIGHT], egui::Button::new(RichText::new(letter.to_string()).size(20.0)));
+                    ui.add_space(ROW1_GAP);
+                    if btn.clicked() {
+                        self.add_char(letter);
+                    }
+                }
+
+                let btn_et = ui.add_sized([LONG_KEY, ROW1_HEIGHT], egui::Button::new(RichText::new("ENTER").size(20.0)));
+                if btn_et.clicked(){
+                    self.entered = true;
+                }
+            });
+
+            ui.add_space(10.0);
+
+            /* 
+                if let Some(ch) = self.selected_key {
+                    ui.label(format!("Recent: {}", ch));
+                }*/
+
+            ui.add_space(30.0);
+
+            /* 
             // === 下拉菜单（难度选择） ===
             egui::ComboBox::from_label("Select Difficulty")
                 .selected_text(&self.difficulty)
@@ -222,6 +333,7 @@ impl eframe::App for MyApp {
                     ui.selectable_value(&mut self.difficulty, "Easy".to_string(), "Easy");
                     ui.selectable_value(&mut self.difficulty, "Difficult".to_string(), "Difficult");
                 });
+            */
         });
     }
 }
