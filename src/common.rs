@@ -21,8 +21,6 @@ pub struct MyApp {
     // pub selected_key: Option<char>, // 最近点击的字母
     // pub difficulty: String,         // 下拉菜单选择
 
-    pub row_full : [bool ; 6],
-    pub row_emp  : [bool ; 6],
     pub row_lock : [bool ; 6],
 
     pub game_state : GameState,

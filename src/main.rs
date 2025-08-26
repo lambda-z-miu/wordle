@@ -19,22 +19,16 @@ const UI_GREY : egui::Color32 = egui::Color32::from_rgb(128,128,128);
 
 impl MyApp {
 
-    fn update_buf(&mut self){
-        for rowindex in 0..6{
-        self.row_full[rowindex] = self.board_letter[rowindex][4].is_some();
-        self.row_emp[rowindex] = self.board_letter[rowindex][0].is_none();
-        }
-    }
+
 
     fn add_char(&mut self, new_letter : char ){
         
-        self.update_buf();
         for rowindex in 0..6{
-            if self.row_full[rowindex] && !self.row_lock[rowindex]{
+            if self.board_letter[rowindex][4].is_some() && !self.row_lock[rowindex]{
                 return;  // when there is a line is full and not checked, add cannot be called 
             }
 
-            if self.row_full[rowindex]{
+            if self.board_letter[rowindex][4].is_some(){
                 continue; // when a line is full, it can not be added but others might
             }
 
@@ -51,10 +45,9 @@ impl MyApp {
 
     fn del_char(&mut self){
 
-        self.update_buf();
         for rowindex in 0..6{
             
-            if self.row_lock[rowindex] || self.row_emp[rowindex]{
+            if self.row_lock[rowindex] || self.board_letter[rowindex][0].is_none(){
                 // println!("row {} locked or empt",rowindex);
                 continue; // when a line is empty or is locked, it cannot be deleted but otherlines might;
             }
@@ -178,13 +171,11 @@ impl eframe::App for MyApp {
                 }
                 let mut guess : String = String::new();
 
-                self.row_full[j] = self.board_letter[j][4].is_some();
-                self.row_emp[j] = self.board_letter[j][0].is_none();
 
-                if !self.row_full[j] && self.entered{
+                if !self.board_letter[j][4].is_some() && self.entered{
                     self.entered = false;
                 }
-                if self.row_full[j] && self.entered{          
+                if self.board_letter[j][4].is_some() && self.entered{          
                     for i in 0..5{
                         guess.push(self.board_letter[j][i].expect("UNREACHABLE"));
                     }
@@ -193,18 +184,7 @@ impl eframe::App for MyApp {
                         true => gamelogic::check_valid_guess_difficult,
                         false => gamelogic::check_valid_guess,
                     };
-
-                    let mut ret: [common::Color; 5] = [common::Color::GREY;5];
-                    for i in 0..5{
-                        ret = gamelogic::check_word(&self.game_state.word,&guess);
-                        self.winflag = true;
-                        for i in ret{
-                            if i != common::Color::GREEN{
-                                self.winflag = false;
-                            }
-                        }
-                        self.board_color[j][i] = Some(ret[i]);
-                    }
+                    
 
 
                     if !checker(guess.clone(),&self.game_state){
@@ -214,8 +194,18 @@ impl eframe::App for MyApp {
                         }
                     }
                     else{
+                        let round_result = gamelogic::game_round(&self.config,&mut self.game_state,guess.clone());
+                        self.winflag = true;
+                        for i in round_result.1{
+                            if i != common::Color::GREEN{
+                                self.winflag = false;
+                            }
+                        }
+                        for i in 0..5{
+                            self.board_color[j][i] = Some(round_result.1[i]);
+                        }
                         self.row_lock[j] = true;
-                        gamelogic::paint_keyboad(&mut self.game_state, ret, &guess);
+                        gamelogic::paint_keyboad(&mut self.game_state, round_result.1, &guess);
 
                     }
                     self.entered = false;
@@ -322,8 +312,6 @@ impl eframe::App for MyApp {
                     gamelogic::reset_game_state(&self.config,&mut self.game_state);
                     self.board_letter = [[None ; 5 ] ; 6 ];
                     self.board_color  = [[None ; 5 ] ; 6 ];
-                    self.row_full = [false ; 6];
-                    self.row_emp = [false ; 6];
                     self.row_lock = [false ; 6];
 
                 }
@@ -338,8 +326,6 @@ impl eframe::App for MyApp {
                     gamelogic::reset_game_state(&self.config,&mut self.game_state);
                     self.board_letter = [[None ; 5 ] ; 6 ];
                     self.board_color  = [[None ; 5 ] ; 6 ];
-                    self.row_full = [false ; 6];
-                    self.row_emp = [false ; 6];
                     self.row_lock = [false ; 6];
 
                     

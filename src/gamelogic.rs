@@ -360,36 +360,9 @@ pub fn paint_keyboad (game_info : &mut GameState , color_info : [Color ; 5], gue
     }
 }
 
-fn game_round(config_info : &MergedConfig , game_info : &mut GameState , guess_arg : String) -> (String,[Color;5]) {
-
-   
-
+pub fn game_round(config_info : &MergedConfig , game_info : &mut GameState , guess_arg : String) -> (String,[Color;5]) {
     let color_info = check_word(&game_info.word,&guess_arg);
     paint_keyboad(game_info, color_info, &guess_arg);
-
-
-    if config_info.is_tty{
-        for i in 0..5{
-            color_info[i].test_print();
-        }
-        println!("");
-
-        for letter in 'A'..='Z'{
-            game_info.alphabet[&letter].test_print();
-        }
-        println!("");
-    }
-    else {
-        for i in 0..5{
-            color_info[i].colored_print(guess_arg.chars().nth(i).expect("UNREACHABLE"));
-        }
-        print!(" ");
-        for letter in 'A'..='Z'{
-            game_info.alphabet[&letter].colored_print(letter);
-        }
-        println!("");
-    }
-
     (guess_arg.to_string(),color_info)
 }
 
@@ -399,6 +372,16 @@ fn muilti_round(config_info : &MergedConfig , game_info : &mut GameState){
 
     for _i in 0..6{
         let round_result = game_round(config_info,game_info,input_guess(&config_info,&game_info));
+        let color_info = &round_result.1;
+        let guess_arg = &round_result.0;
+        for i in 0..5{
+            color_info[i].colored_print(guess_arg.chars().nth(i).expect("UNREACHABLE"));
+        }
+        print!(" ");
+        for letter in 'A'..='Z'{
+            game_info.alphabet[&letter].colored_print(letter);
+        }
+        println!("");
         win_flag = round_result.0 == game_info.word;
         game_info.trys.push(round_result);
         if win_flag {
