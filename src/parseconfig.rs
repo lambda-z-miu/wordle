@@ -21,6 +21,7 @@ const DEFAULT_ACC_SET : &str  = "words.txt";
   "state": "state.json",
   "word": "cargo"
 */
+
 #[derive(Debug, Deserialize)]
 struct JsonConfig {
     random: Option<bool>,
@@ -35,14 +36,14 @@ struct JsonConfig {
 }
 
 impl JsonConfig {
-    fn get_config_form_JSON(JSON_path : &String) -> JsonConfig {
-        let data = fs::read_to_string(JSON_path).expect("Unable to read JSON config");
+    fn get_config_form_json(json_path : &String) -> JsonConfig {
+        let data = fs::read_to_string(json_path).expect("Unable to read JSON config");
         let cfg: JsonConfig = serde_json::from_str(&data).expect("JSON was not well-formatted");
         // println!("解析结果: {:?}", cfg);
         cfg
     }
 
-    fn check_JSON_config(&self) -> bool {
+    fn check_json_config(&self) -> bool {
     let day_valid = self.day.is_some();
     let stat_valid = self.stats.is_some();
     let seed_valid = self.seed.is_some();
@@ -52,8 +53,8 @@ impl JsonConfig {
     if check_random != check_random_word {
        return false;
     } 
-    if let Some(JSON_random) = self.random {
-        if JSON_random != check_random{
+    if let Some(json_random) = self.random {
+        if json_random != check_random{
             return false;
         }
     }
@@ -150,7 +151,7 @@ struct Args {
 
 impl Args {
     fn parse_cmd_args(self) -> CmdConfig {
-        let mut ret_GC = 
+        let mut ret_gc = 
             CmdConfig { 
                 random : self.random,
                 is_tty: self.is_tty, 
@@ -165,16 +166,16 @@ impl Args {
                 config_path: self.config_path,
                 ui : self.ui,
             };
-        ret_GC.random = ret_GC.given_word.is_none();
+        ret_gc.random = ret_gc.given_word.is_none();
 
-        return ret_GC;
+        return ret_gc;
     }
 }
 
 
 
 fn merge_config(cmd_config: &CmdConfig, json_config: &JsonConfig) -> MergedConfig {
-    let mut ret_MC = 
+    let mut ret_mc = 
         MergedConfig { 
             is_tty: cmd_config.is_tty, 
             random: cmd_config.random, 
@@ -190,22 +191,22 @@ fn merge_config(cmd_config: &CmdConfig, json_config: &JsonConfig) -> MergedConfi
         };
 
     if !cmd_config.random {
-        ret_MC.random = json_config.random.unwrap_or(false);
+        ret_mc.random = json_config.random.unwrap_or(false);
     } // random canbe set by JSON or cmd but cmd args have higher priority
 
     if !cmd_config.difficult {
-        ret_MC.difficult = json_config.difficult.unwrap_or(false);
+        ret_mc.difficult = json_config.difficult.unwrap_or(false);
     } // difficult canbe set by JSON or cmd IN ANY MODE
 
-    if ret_MC.random{
+    if ret_mc.random{
         if !cmd_config.stats {
-            ret_MC.stats = json_config.stats.unwrap_or(false);
+            ret_mc.stats = json_config.stats.unwrap_or(false);
         }// stats canbe set by JSON or cmd ONLY IN RANDOM MODE, cmd args have higher priority
         if cmd_config.day.is_none() {
-            ret_MC.day = json_config.day;
+            ret_mc.day = json_config.day;
         } // day canbe set by JSON or cmd ONLY IN RANDOM MODE, cmd args have higher priority
         if cmd_config.seed.is_none() {
-            ret_MC.seed = json_config.seed;
+            ret_mc.seed = json_config.seed;
         } // seed canbe set by JSON or cmd ONLY IN RANDOM MODE, cmd args have higher priority
         if json_config.word.is_some() {
             panic!("Incosistent JSON config: word can NOT be set in random mode");
@@ -227,14 +228,17 @@ fn merge_config(cmd_config: &CmdConfig, json_config: &JsonConfig) -> MergedConfi
     }
 
     if cmd_config.final_set_path.is_none() {
-        ret_MC.final_set_path = json_config.final_set.clone().unwrap_or(DEFAULT_FINAL_SET.to_string());
+        ret_mc.final_set_path = json_config.final_set.clone().unwrap_or(DEFAULT_FINAL_SET.to_string());
     }  // final_set canbe set by JSON or cmd IN ANY MODE, cmd args have higher priority
     if cmd_config.acc_set_path.is_none() {
-        ret_MC.acc_set_path = json_config.acceptable_set.clone().unwrap_or(DEFAULT_ACC_SET.to_string());
+        ret_mc.acc_set_path = json_config.acceptable_set.clone().unwrap_or(DEFAULT_ACC_SET.to_string());
+    } // acceptable_set canbe set by JSON or cmd IN ANY MODE, cmd args have higher priority
+    if cmd_config.state_path.is_none() {
+        ret_mc.state_path = json_config.state.clone();
     } // acceptable_set canbe set by JSON or cmd IN ANY MODE, cmd args have higher priority
     
     // Config state_path is no longer used, thus we do not merge it
-    ret_MC
+    ret_mc
 }
 
 
@@ -243,16 +247,16 @@ pub fn parse_config() -> MergedConfig {
     let args : Args = Args::parse();
     let cmd_config = args.parse_cmd_args();
 
-    let from_JSON : JsonConfig;
+    let from_json : JsonConfig;
     let final_config : MergedConfig;
 
     final_config = match &cmd_config.config_path {
         Some(path) => {
-            from_JSON = JsonConfig::get_config_form_JSON(&path);
-            if !from_JSON.check_JSON_config() {
+            from_json = JsonConfig::get_config_form_json(&path);
+            if !from_json.check_json_config() {
                 panic!("JSON config is not valid, please check the config file.");
             }
-            merge_config(&cmd_config, &from_JSON)// final config generated and checked
+            merge_config(&cmd_config, &from_json)// final config generated and checked
         }
         None => {
             cmd_config.convert_cmd_to_merged()

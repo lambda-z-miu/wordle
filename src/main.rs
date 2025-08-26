@@ -2,48 +2,88 @@ mod parseconfig;
 mod common;
 mod gamelogic;
 
-use common::Color;
-
-
 
 use eframe::egui;
-use egui::StrokeKind::Inside;
+use egui::{Color32, StrokeKind::Inside};
+use egui::{Pos2, Vec2};
 use common::MyApp;
 use egui::RichText;
 
 
-const ui_green : egui::Color32 = egui::Color32::from_rgb(107,186,107);
-const ui_yellow : egui::Color32 = egui::Color32::from_rgb(243,194,55);
-const ui_red : egui::Color32 = egui::Color32::from_rgb(207,86,125);
-const ui_grey : egui::Color32 = egui::Color32::from_rgb(128,128,128);
+const UI_GREEN : egui::Color32 = egui::Color32::from_rgb(107,186,107);
+const UI_YELLOW : egui::Color32 = egui::Color32::from_rgb(243,194,55);
+const UI_RED : egui::Color32 = egui::Color32::from_rgb(207,86,125);
+const UI_GREY : egui::Color32 = egui::Color32::from_rgb(128,128,128);
 
 
 
 impl MyApp {
-    fn add_char(&mut self, new_letter : char ){
+
+    fn update_buf(&mut self){
         for rowindex in 0..6{
+        self.row_full[rowindex] = self.board_letter[rowindex][4].is_some();
+        self.row_emp[rowindex] = self.board_letter[rowindex][0].is_none();
+        }
+    }
+
+    fn add_char(&mut self, new_letter : char ){
+        
+        self.update_buf();
+        for rowindex in 0..6{
+            if self.row_full[rowindex] && !self.row_lock[rowindex]{
+                return;  // when there is a line is full and not checked, add cannot be called 
+            }
+
+            if self.row_full[rowindex]{
+                continue; // when a line is full, it can not be added but others might
+            }
+
             for colindex in 0..5{
                 if self.board_letter[rowindex][colindex]==None{
                     self.board_letter[rowindex][colindex] = Some(new_letter);
+                    // println!("added char {} at {},{}",new_letter,rowindex+1,colindex+1);
+                    return;
+                }
+            }
+
+        }
+    }
+
+    fn del_char(&mut self){
+
+        self.update_buf();
+        for rowindex in 0..6{
+            
+            if self.row_lock[rowindex] || self.row_emp[rowindex]{
+                // println!("row {} locked or empt",rowindex);
+                continue; // when a line is empty or is locked, it cannot be deleted but otherlines might;
+            }
+
+            for colindex in (0..5).rev(){
+                if self.board_letter[rowindex][colindex].is_some(){
+                    // println!("deleted char {} at {},{}",self.board_letter[rowindex][colindex].unwrap(),rowindex+1,colindex+1);
+                    self.board_letter[rowindex][colindex] = None;
                     return;
                 }
             }
         }
     }
 
-    fn del_char(&mut self){
-        for rowindex in 0..6{
-            
-            if self.board_letter[rowindex][4].is_some(){
-                continue;
-            }
+    fn spawn_confetti(&mut self,ctx: &egui::Context) {
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
 
-            for colindex in 0..4{
-                if self.board_letter[rowindex][colindex].is_some() && self.board_letter[rowindex][colindex+1].is_none(){
-                    self.board_letter[rowindex][colindex] = None;
-                    return;
-                }
-            }
+        let screen = ctx.screen_rect();
+        let center_x = screen.center().x;
+        let top_y = screen.top();
+
+        for _ in 0..8 {
+            self.confetti.push(common::Confetti {
+                pos: Pos2::new(center_x + rng.gen_range(-800.0..800.0), top_y),
+                vel: Vec2::new(rng.gen_range(-1.0..1.0), rng.gen_range(2.0..5.0)),
+                color:Color32::from_rgb(rng.gen_range(0..256) as u8 , rng.gen_range(0..256) as u8, rng.gen_range(0..256) as u8),
+                lifetime: 6.0,
+            });
         }
     }
 }
@@ -84,12 +124,30 @@ impl eframe::App for MyApp {
 
         egui::CentralPanel::default().show(ctx, |ui| {
 
-            /* 
+            
             ui.vertical_centered(|ui| {
-                ui.add_space(10.0);
-                ui.label(egui::RichText::new("Wordle").size(48.0) .strong());
-                ui.add_space(10.0);
-            }); */
+                let dt = 1.0 / 30.0; // 假设60fps
+                self.time += dt;
+
+                // 更新粒子
+                for c in &mut self.confetti {
+                    c.pos += c.vel * dt * 60.0; // 简单位移
+                    c.lifetime -= dt;
+                }
+
+                // 删除过期的
+                self.confetti.retain(|c| c.lifetime > 0.0);
+                let painter = ui.painter();
+                for c in &self.confetti {
+                painter.circle_filled(c.pos, 5.0, c.color);
+                ctx.request_repaint();
+            }
+            }); 
+
+
+        
+        // 让 egui 尽快重绘，保持动画流畅
+        
 
             ui.input(|i| {
             for event in &i.events {
@@ -110,13 +168,23 @@ impl eframe::App for MyApp {
 
                 if i.key_pressed(egui::Key::Enter) {
                     self.entered = true;
+                    // print!("enter+pressed")
                 }
-                // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!TODO   : WHEN ENTER, THER MUST BE A NEW LINE
             });
 
             for j in 0..6{
+                if self.row_lock[j]{
+                    continue;
+                }
                 let mut guess : String = String::new();
-                if self.board_letter[j][4].is_some(){          
+
+                self.row_full[j] = self.board_letter[j][4].is_some();
+                self.row_emp[j] = self.board_letter[j][0].is_none();
+
+                if !self.row_full[j] && self.entered{
+                    self.entered = false;
+                }
+                if self.row_full[j] && self.entered{          
                     for i in 0..5{
                         guess.push(self.board_letter[j][i].expect("UNREACHABLE"));
                     }
@@ -126,9 +194,16 @@ impl eframe::App for MyApp {
                         false => gamelogic::check_valid_guess,
                     };
 
+                    let mut ret: [common::Color; 5] = [common::Color::GREY;5];
                     for i in 0..5{
-                    let ret = gamelogic::check_word(&self.game_state.word,&guess);
-                    self.board_color[j][i] = Some(ret[i]);
+                        ret = gamelogic::check_word(&self.game_state.word,&guess);
+                        self.winflag = true;
+                        for i in ret{
+                            if i != common::Color::GREEN{
+                                self.winflag = false;
+                            }
+                        }
+                        self.board_color[j][i] = Some(ret[i]);
                     }
 
 
@@ -138,7 +213,13 @@ impl eframe::App for MyApp {
                             self.board_color[j][i] = None;
                         }
                     }
+                    else{
+                        self.row_lock[j] = true;
+                        gamelogic::paint_keyboad(&mut self.game_state, ret, &guess);
+
+                    }
                     self.entered = false;
+
                 }
             }
             
@@ -182,10 +263,10 @@ impl eframe::App for MyApp {
                         let fill_color = {
                             match &self.board_color[row][col] {
                                 Some(color) => match &color {
-                                    common::Color::RED => ui_red,
-                                    common::Color::YELLOW => ui_yellow,
-                                    common::Color::GREEN => ui_green,
-                                    common::Color::GREY => ui_grey,
+                                    common::Color::RED => UI_RED,
+                                    common::Color::YELLOW => UI_YELLOW,
+                                    common::Color::GREEN => UI_GREEN,
+                                    common::Color::GREY => UI_GREY,
                                 },
                                 None => egui::Color32::WHITE,
                         }
@@ -231,7 +312,46 @@ impl eframe::App for MyApp {
                 ui.add_space(ROW_GAP);
             }
 
-            ui.add_space(90.0);
+            ui.add_space(30.0);
+            if self.row_lock[5] && !self.winflag{
+                ui.vertical_centered(|ui| {
+                let ret : String = "Failed! The answer is ".to_string() + &self.game_state.word;
+                let restart = ui.button(egui::RichText::new(&ret).size(30.0) .strong());
+                if restart.clicked(){
+                    self.winflag = false;
+                    gamelogic::reset_game_state(&self.config,&mut self.game_state);
+                    self.board_letter = [[None ; 5 ] ; 6 ];
+                    self.board_color  = [[None ; 5 ] ; 6 ];
+                    self.row_full = [false ; 6];
+                    self.row_emp = [false ; 6];
+                    self.row_lock = [false ; 6];
+
+                }
+                ui.add_space(30.0);
+                }); 
+            }
+            if self.winflag{
+                ui.vertical_centered(|ui| {
+                let restart = ui.button(egui::RichText::new("🎉 You Win! 🎉").size(30.0) .strong());
+                if restart.clicked(){
+                    self.winflag = false;
+                    gamelogic::reset_game_state(&self.config,&mut self.game_state);
+                    self.board_letter = [[None ; 5 ] ; 6 ];
+                    self.board_color  = [[None ; 5 ] ; 6 ];
+                    self.row_full = [false ; 6];
+                    self.row_emp = [false ; 6];
+                    self.row_lock = [false ; 6];
+
+                    
+                }
+                ui.add_space(30.0);
+                }); 
+                self.spawn_confetti(ctx);
+            }
+            else {
+                ui.add_space(60.0);
+            }
+            
 
 
             // === 虚拟键盘 A-Z ===
@@ -266,7 +386,14 @@ impl eframe::App for MyApp {
                 ui.add_space(left_pad_1);
 
                 for letter in (['Q','W','E','R','T','Y','U','I','O','P']).into_iter().collect::<Vec<_>>(){
-                    let btn = ui.add_sized([ROW1_LEN, ROW1_HEIGHT], egui::Button::new(RichText::new(letter.to_string()).size(20.0)));//.color(Color32::BLACK)
+                    let bg_color = self.game_state.alphabet[&letter];
+                    let btn_color = match bg_color {
+                        common::Color::RED => UI_RED,
+                        common::Color::YELLOW => UI_YELLOW,
+                        common::Color::GREEN => UI_GREEN,
+                        common::Color::GREY => UI_GREY,
+                    };    
+                    let btn = ui.add_sized([ROW1_LEN, ROW1_HEIGHT], egui::Button::new(RichText::new(letter.to_string()).size(20.0).color(Color32::WHITE)).fill(btn_color));//.color(Color32::BLACK)
                     ui.add_space(ROW1_GAP);
                     
                     if btn.clicked() {
@@ -282,7 +409,14 @@ impl eframe::App for MyApp {
             ui.horizontal(|ui| {
                 ui.add_space(left_pad_1);
                 for letter in (['A','S','D','F','G','H','J','K','L']).into_iter().collect::<Vec<_>>(){
-                        let btn = ui.add_sized([ROW2_LEN, ROW1_HEIGHT], egui::Button::new(RichText::new(letter.to_string()).size(20.0)));
+                        let bg_color = self.game_state.alphabet[&letter];
+                        let btn_color = match bg_color {
+                            common::Color::RED => UI_RED,
+                            common::Color::YELLOW => UI_YELLOW,
+                            common::Color::GREEN => UI_GREEN,
+                            common::Color::GREY => UI_GREY,
+                        };
+                        let btn = ui.add_sized([ROW2_LEN, ROW1_HEIGHT], egui::Button::new(RichText::new(letter.to_string()).size(20.0).color(Color32::WHITE)).fill(btn_color));
                         ui.add_space(ROW2_GAP);
                         
                         if btn.clicked() {
@@ -303,7 +437,14 @@ impl eframe::App for MyApp {
                 ui.add_space(ROW1_GAP);
 
                 for letter in (['Z','X','C','V','B','N','M']).into_iter().collect::<Vec<_>>(){
-                    let btn = ui.add_sized([ROW1_LEN, ROW1_HEIGHT], egui::Button::new(RichText::new(letter.to_string()).size(20.0)));
+                    let bg_color = self.game_state.alphabet[&letter];
+                    let btn_color = match bg_color {
+                        common::Color::RED => UI_RED,
+                        common::Color::YELLOW => UI_YELLOW,
+                        common::Color::GREEN => UI_GREEN,
+                        common::Color::GREY => UI_GREY,
+                    };    
+                    let btn = ui.add_sized([ROW1_LEN, ROW1_HEIGHT], egui::Button::new(RichText::new(letter.to_string()).size(20.0).color(Color32::WHITE)).fill(btn_color));
                     ui.add_space(ROW1_GAP);
                     if btn.clicked() {
                         self.add_char(letter);
@@ -347,7 +488,7 @@ impl eframe::App for MyApp {
 fn main() -> () {
 
     let final_config = parseconfig::parse_config();
-    let mut common_gs = gamelogic::generate_game_state(&final_config);
+    let common_gs = gamelogic::generate_game_state(&final_config);
 
     if !final_config.ui{
         gamelogic::pure_game(final_config, common_gs);

@@ -1,11 +1,10 @@
-use crate::parseconfig;
+
 use crate::common;
 
 use common::Color;
 use common::GameState;
 use common::MergedConfig;
 
-use rand::Rng;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
@@ -21,23 +20,23 @@ use serde_json;
 use std::io;
 use colored::*;
 use std::collections::HashMap;
-use std::cmp::min;
+
 
 
 pub fn pure_game(final_config : MergedConfig , game_state_arg :  GameState) -> () {
 
     let mut game_state = game_state_arg;
 
-    let JSON_path = &final_config.state_path;
-    let mut state_from_JSON : JSONState =  JSONState {
+    let json_path = &final_config.state_path;
+    let mut state_from_json : JSONState =  JSONState {
         total_rounds: None,
         games: Vec::new(),
     }; // set a default empty state
 
     let mut opt_path = "tmp.json";
-    if let Some(JSON_path) = JSON_path{
-        if let Some(state) = JSONState::get_state_form_JSON(&JSON_path){
-            state_from_JSON = state;
+    if let Some(json_path) = json_path{
+        if let Some(state) = JSONState::get_state_form_json(&json_path){
+            state_from_json = state;
             opt_path = "state_mem.json";
         }
     }
@@ -45,10 +44,10 @@ pub fn pure_game(final_config : MergedConfig , game_state_arg :  GameState) -> (
     if final_config.random{
         loop{
             muilti_round(&final_config,&mut game_state);
-            state_from_JSON.update_JSONstate(&game_state);
-            state_from_JSON.write_to_JSON(opt_path);
+            state_from_json.update_jsonstate(&game_state);
+            state_from_json.write_to_json(opt_path);
             if final_config.stats{
-                let stat_data = state_from_JSON.stat();
+                let stat_data = state_from_json.stat();
                 stat_data.print();
             }
             println!("insert q to end");
@@ -70,10 +69,10 @@ pub fn pure_game(final_config : MergedConfig , game_state_arg :  GameState) -> (
     }
     else{
         muilti_round(&final_config,&mut game_state);
-        state_from_JSON.update_JSONstate(&game_state);
-        state_from_JSON.write_to_JSON("state_write.json");
+        state_from_json.update_jsonstate(&game_state);
+        state_from_json.write_to_json("state_write.json");
         if final_config.stats{
-            let stat_data = state_from_JSON.stat();
+            let stat_data = state_from_json.stat();
             stat_data.print();
         }
     }
@@ -81,7 +80,7 @@ pub fn pure_game(final_config : MergedConfig , game_state_arg :  GameState) -> (
 }
 
 
-fn reset_game_state (final_config : &MergedConfig, game_record : &mut GameState){
+pub fn reset_game_state (final_config : &MergedConfig, game_record : &mut GameState){
     game_record.trys.clear();
     game_record.days += 1;
     game_record.word  = {
@@ -89,52 +88,66 @@ fn reset_game_state (final_config : &MergedConfig, game_record : &mut GameState)
             game_record.final_set[game_record.days as usize].clone()
         }
         else{
-            unreachable!("should not reach here");
+            unreachable!("Game cannot continue when answer is specified");
         }
-    }
+    };
+    game_record.alphabet = {
+        let mut ret : HashMap<char,Color> = HashMap::new();
+            for letter in 'A'..='Z'{
+                ret.insert(letter,Color::GREY);
+            }
+            ret
+    };
 }
 
 pub fn generate_game_state( final_config: &MergedConfig) -> GameState {
-    let mut ret_GS = GameState {
+    let mut ret_gs = GameState {
         word: String::new(),
         final_set: Vec::new(),
         acc_set: Vec::new(),
         days: 1,
         trys: Vec::new(),
+        alphabet: {
+            let mut ret : HashMap<char,Color> = HashMap::new();
+            for letter in 'A'..='Z'{
+                ret.insert(letter,Color::GREY);
+            }
+            ret
+        }
     };
 
-    ret_GS.final_set = read_voc_list(&(final_config.final_set_path)).expect("Failed to read final set");
-    ret_GS.acc_set = read_voc_list(&(final_config.acc_set_path)).expect("Failed to read acceptable set");
+    ret_gs.final_set = read_voc_list(&(final_config.final_set_path)).expect("Failed to read final set");
+    ret_gs.acc_set = read_voc_list(&(final_config.acc_set_path)).expect("Failed to read acceptable set");
     
     // words store must be sorted & capitalized
-    for item in &mut ret_GS.final_set{
+    for item in &mut ret_gs.final_set{
         *item = item.to_uppercase();
     }
-    ret_GS.final_set.sort();
+    ret_gs.final_set.sort();
 
-    for item in &mut ret_GS.acc_set{
+    for item in &mut ret_gs.acc_set{
         *item = item.to_uppercase();
     }
-    ret_GS.acc_set.sort();
+    ret_gs.acc_set.sort();
 
     // word list should be unique, 5-letter-long, final contained in acc
-    if !check_voc_lists(&ret_GS.final_set, &ret_GS.acc_set) {
+    if !check_voc_lists(&ret_gs.final_set, &ret_gs.acc_set) {
         panic!("Error: wordlist invalid.");
     }
 
     // in rand mode use shuffle & select 1-n in nth day
     if final_config.random {
         let mut rng = StdRng::seed_from_u64(final_config.seed.unwrap_or(20220123));
-        ret_GS.final_set.shuffle(&mut rng);
-        // println!("Shuffled final set: {:?}", ret_GS.final_set);
-        ret_GS.days = final_config.day.unwrap_or(1);
-        ret_GS.word =  ret_GS.final_set[ret_GS.days as usize].clone();  
+        ret_gs.final_set.shuffle(&mut rng);
+        // println!("Shuffled final set: {:?}", ret_gs.final_set);
+        ret_gs.days = final_config.day.unwrap_or(1);
+        ret_gs.word =  ret_gs.final_set[ret_gs.days as usize].clone();  
     }
     else{
-        ret_GS.days = 1;
-        ret_GS.word = final_config.given_word.clone().expect("UNREACHABLE : In fixed mode, word is ensured to be given");
+        ret_gs.days = 1;
+        ret_gs.word = final_config.given_word.clone().expect("UNREACHABLE : In fixed mode, word is ensured to be given");
     }
-    ret_GS
+    ret_gs
 }
 
 
@@ -312,7 +325,7 @@ fn input_guess(config_info : &MergedConfig , game_info : &GameState) -> String {
 
 
     let mut new_guess = String::new();
-    let mut trimmed_guess = String::new();
+    let mut trimmed_guess ;
     loop{
         new_guess.clear();
         io::stdin().read_line(&mut new_guess).expect("IO Error");
@@ -331,26 +344,30 @@ fn input_guess(config_info : &MergedConfig , game_info : &GameState) -> String {
     return trimmed_guess;   
 }
 
-fn game_round(config_info : &MergedConfig , game_info : &GameState, alphabet : &mut HashMap<char,Color>, guess_arg : String) -> (String,[Color;5]) {
-
-   
-
-    let color_info = check_word(&game_info.word,&guess_arg);
-
+pub fn paint_keyboad (game_info : &mut GameState , color_info : [Color ; 5], guess_arg : &str){
     for i in 0..5{
         let letter = guess_arg.chars().nth(i).expect("UNREACHABLE");
         let color = &color_info[i];
         if *color == Color::GREEN{
-            alphabet.insert(letter.clone(),Color::GREEN);
+            game_info.alphabet.insert(letter.clone(),Color::GREEN);
         }
-        else if *color == Color::YELLOW && alphabet[&letter] != Color::GREEN{
-            alphabet.insert(letter.clone(),Color::YELLOW);
+        else if *color == Color::YELLOW && game_info.alphabet[&letter] != Color::GREEN{
+            game_info.alphabet.insert(letter.clone(),Color::YELLOW);
         }
-        else if *color == Color::RED && alphabet[&letter] != Color::GREEN && alphabet[&letter] != Color::YELLOW{
-            alphabet.insert(letter.clone(),Color::RED);
+        else if *color == Color::RED && game_info.alphabet[&letter] != Color::GREEN && game_info.alphabet[&letter] != Color::YELLOW{
+            game_info.alphabet.insert(letter.clone(),Color::RED);
         }
     }
-    
+}
+
+fn game_round(config_info : &MergedConfig , game_info : &mut GameState , guess_arg : String) -> (String,[Color;5]) {
+
+   
+
+    let color_info = check_word(&game_info.word,&guess_arg);
+    paint_keyboad(game_info, color_info, &guess_arg);
+
+
     if config_info.is_tty{
         for i in 0..5{
             color_info[i].test_print();
@@ -358,7 +375,7 @@ fn game_round(config_info : &MergedConfig , game_info : &GameState, alphabet : &
         println!("");
 
         for letter in 'A'..='Z'{
-            alphabet[&letter].test_print();
+            game_info.alphabet[&letter].test_print();
         }
         println!("");
     }
@@ -368,7 +385,7 @@ fn game_round(config_info : &MergedConfig , game_info : &GameState, alphabet : &
         }
         print!(" ");
         for letter in 'A'..='Z'{
-            alphabet[&letter].colored_print(letter);
+            game_info.alphabet[&letter].colored_print(letter);
         }
         println!("");
     }
@@ -379,13 +396,9 @@ fn game_round(config_info : &MergedConfig , game_info : &GameState, alphabet : &
 fn muilti_round(config_info : &MergedConfig , game_info : &mut GameState){
     let mut win_flag : bool = false;
 
-    let mut alphabet : HashMap<char,Color> = HashMap::<char,Color>::new();
-    for letter in 'A'..='Z'{
-        alphabet.insert(letter,Color::GREY);
-    }
 
-    for i in 0..6{
-        let round_result = game_round(config_info,game_info,&mut alphabet,input_guess(&config_info,&game_info));
+    for _i in 0..6{
+        let round_result = game_round(config_info,game_info,input_guess(&config_info,&game_info));
         win_flag = round_result.0 == game_info.word;
         game_info.trys.push(round_result);
         if win_flag {
@@ -430,8 +443,8 @@ struct JSONState {
 
 
 impl JSONState {
-    fn get_state_form_JSON(JSON_path : &str) -> Option<JSONState> {
-        let data = match fs::read_to_string(JSON_path) {
+    fn get_state_form_json(json_path : &str) -> Option<JSONState> {
+        let data = match fs::read_to_string(json_path) {
             Ok(s) => s,
             Err(_) => {
                 println!("No existing state file found, starting a new game.");
@@ -443,7 +456,7 @@ impl JSONState {
         Some(cfg)
     }
 
-    fn update_JSONstate(&mut self, new_game_state : & GameState){
+    fn update_jsonstate(&mut self, new_game_state : & GameState){
         self.total_rounds = Some(self.total_rounds.unwrap_or(1) + 1);
         let new_record = JSONAux{
             answer : Some(new_game_state.word.clone()),
@@ -461,7 +474,7 @@ impl JSONState {
         self.games.push(new_record);
     }
 
-    fn write_to_JSON(&mut self,write_path:&str) -> Option<()> {
+    fn write_to_json(&mut self,write_path:&str) -> Option<()> {
         let json_str = serde_json::to_string_pretty(&self).ok()?;
         // println!("解析结果: {:?}", json_str);
         let mut file = File::create(write_path).ok()?;
@@ -569,5 +582,4 @@ impl PartialOrd for WordCount {
 
 
 // TODOs :
-// --word consistency
 // -tty test
