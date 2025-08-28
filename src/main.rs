@@ -85,12 +85,23 @@ impl eframe::App for MyApp {
             egui::FontData::from_static(include_bytes!("../font.TTF")).into(),
         );
 
+        fonts.font_data.insert(
+            "SYMBOLS".to_owned(),
+            egui::FontData::from_static(include_bytes!("../SEGMDL2.TTF")).into(),
+        );
+
         // add font family
         fonts
             .families
             .get_mut(&egui::FontFamily::Proportional)
             .unwrap()
             .insert(0, "ARIAL_BOLD".to_owned());
+
+        fonts
+            .families
+            .get_mut(&egui::FontFamily::Proportional)
+            .unwrap()
+            .insert(0, "SYMBOLS".to_owned());
 
         ctx.set_fonts(fonts);
 
@@ -373,7 +384,7 @@ impl eframe::App for MyApp {
 
                 let btn_bk = ui.add_sized(
                     [LONG_KEY, ROW1_HEIGHT],
-                    egui::Button::new(RichText::new("BACK").size(20.0)),
+                    egui::Button::new(RichText::new("\u{E750}").size(20.0)),
                 );
                 if btn_bk.clicked() {
                     self.del_char();
@@ -408,7 +419,7 @@ impl eframe::App for MyApp {
 
                 let btn_et = ui.add_sized(
                     [LONG_KEY, ROW1_HEIGHT],
-                    egui::Button::new(RichText::new("ENTER").size(20.0)),
+                    egui::Button::new(RichText::new("\u{E751}").size(20.0)),
                 );
                 if btn_et.clicked() {
                     self.entered = true;
